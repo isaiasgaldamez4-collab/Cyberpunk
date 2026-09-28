@@ -1,0 +1,6 @@
+{
+  "name": "Cyberpunk Neon Store",
+  "description": "Tienda en línea estilo cyberpunk neón con sincronización en Google Sheets, autenticación, catálogo con descuentos, carrito y generación de factura PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cyberpunk Neon Store | Conexión Google Sheets</title>
+  <meta name="description" content="Simulación de tienda en línea estilo cyberpunk neón con sincronización en Google Sheets, autenticación, catálogo con descuentos, carrito y generación de factura PDF." />
+  <meta property="og:title" content="Cyberpunk Neon Store | Conexión Google Sheets" />
+  <meta property="og:description" content="Tienda interactiva estilo cyberpunk neón conectada a Google Sheets con carrito y factura PDF." />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Custom Configuration -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cyberDark: '#080812',
+            cyberCard: 'rgba(15, 15, 28, 0.75)',
+            neonCyan: '#00f5d4',
+            neonPurple: '#8b5cf6',
+            neonPink: '#f72585',
+            neonBlue: '#3a0ca3'
+          },
+          fontFamily: {
+            orbitron: ['Orbitron', 'sans-serif'],
+            rajdhani: ['Rajdhani', 'sans-serif'],
+            sans: ['Inter', 'sans-serif']
+          },
+          boxShadow: {
+            glowCyan: '0 0 20px rgba(0, 245, 212, 0.45)',
+            glowCyanSm: '0 0 10px rgba(0, 245, 212, 0.35)',
+            glowPurple: '0 0 25px rgba(139, 92, 246, 0.45)',
+            glowPurpleSm: '0 0 12px rgba(139, 92, 246, 0.35)',
+            glowCard: '0 8px 32px 0 rgba(0, 0, 0, 0.5)'
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Google Fonts: Orbitron & Rajdhani -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- html2pdf.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    /* Estilos globales y efectos Cyberpunk */
+    body {
+      background-color: #080812;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(139, 92, 246, 0.18) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(0, 245, 212, 0.15) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(247, 37, 133, 0.08) 0%, transparent 60%);
+      background-attachment: fixed;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Glassmorphism containers */
+    .glass-panel {
+      background: rgba(14, 15, 29, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(0, 245, 212, 0.18);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+    }
+
+    .glass-panel-purple {
+      background: rgba(18, 14, 32, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(139, 92, 246, 0.22);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+    }
+
+    .glass-input {
+      background: rgba(8, 8, 18, 0.75);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      color: #00f5d4;
+      transition: all 0.3s ease;
+    }
+
+    .glass-input:focus {
+      outline: none;
+      border-color: #00f5d4;
+      box-shadow: 0 0 14px rgba(0, 245, 212, 0.45);
+    }
+
+    /* Text glows */
+    .text-glow-cyan {
+      text-shadow: 0 0 10px rgba(0, 245, 212, 0.7), 0 0 20px rgba(0, 245, 212, 0.4);
+    }
+    .text-glow-purple {
+      text-shadow: 0 0 10px rgba(139, 92, 246, 0.7), 0 0 20px rgba(139, 92, 246, 0.4);
+    }
+
+    /* Animación de la carretera y camión */
+    .road-track {
+      background-color: #0d0f1f;
+      position: relative;
+      overflow: hidden;
+      border-top: 2px solid rgba(0, 245, 212, 0.3);
+      border-bottom: 2px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .road-lines {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 200%;
+      height: 4px;
+      transform: translateY(-50%);
+      background: repeating-linear-gradient(
+        90deg,
+        #00f5d4 0px,
+        #00f5d4 25px,
+        transparent 25px,
+        transparent 50px
+      );
+      animation: roadMove 1.2s linear infinite;
+    }
+
+    @keyframes roadMove {
+      0% { transform: translateY(-50%) translateX(0); }
+      100% { transform: translateY(-50%) translateX(-50px); }
+    }
+
+    .truck-container {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-55%);
+      animation: driveTruckAcross 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    @keyframes driveTruckAcross {
+      0% {
+        left: -80px;
+        opacity: 0.8;
+      }
+      5% {
+        opacity: 1;
+      }
+      90% {
+        opacity: 1;
+      }
+      100% {
+        left: calc(100% + 80px);
+        opacity: 0.8;
+      }
+    }
+
+    /* Cyber grid overlay */
+    .cyber-grid-bg {
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #080812;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #8b5cf6;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00f5d4;
+    }
+
+    /* PDF Printable hidden style */
+    #factura-pdf-template {
+      display: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen cyber-grid-bg flex flex-col justify-between selection:bg-neonCyan selection:text-black">
+
+  <!-- ========================================== -->
+  <!-- BARRA DE NAVEGACIÓN SUPERIOR (CYBERPUNK)   -->
+  <!-- ========================================== -->
+  <header class="sticky top-0 z-40 w-full glass-panel border-b border-cyan-500/20 px-4 lg:px-8 py-3.5 flex items-center justify-between">
+    <div class="flex items-center space-x-3 cursor-pointer" onclick="navegarA('catalogo')">
+      <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-neonPurple to-neonCyan p-0.5 shadow-glowCyanSm flex items-center justify-center">
+        <div class="w-full h-full bg-[#080812] rounded-[7px] flex items-center justify-center">
+          <i class="fa-solid fa-microchip text-neonCyan text-lg"></i>
+        </div>
+      </div>
+      <div>
+        <h1 class="font-orbitron font-extrabold text-lg lg:text-xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-neonCyan via-white to-neonPurple">
+          CYBER<span class="text-neonCyan">NEXUS</span>
+        </h1>
+        <p class="text-[10px] uppercase font-rajdhani tracking-widest text-purple-400">Sheet Store System v3.0</p>
+      </div>
+    </div>
+
+    <!-- Navegación central y estado de usuario -->
+    <div class="flex items-center space-x-3 sm:space-x-5">
+      <!-- Indicador de API / Google Sheets -->
+      <button onclick="abrirModalConfigAPI()" title="Configuración de Google Sheets API" class="flex items-center space-x-2 px-2.5 py-1 rounded-full border border-purple-500/40 bg-purple-950/40 hover:border-neonCyan transition-all text-xs font-mono">
+        <span id="apiStatusDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="hidden md:inline text-purple-200" id="apiStatusText">Google Sheets API</span>
+        <i class="fa-solid fa-cloud-arrow-up text-neonCyan text-xs"></i>
+      </button>
+
+      <!-- Botón Catálogo -->
+      <button id="navCatalogoBtn" onclick="navegarA('catalogo')" class="text-sm font-rajdhani font-semibold tracking-wider text-cyan-300 hover:text-neonCyan transition-colors flex items-center space-x-1.5 py-1 px-2.5 rounded-lg border border-transparent hover:border-cyan-500/30">
+        <i class="fa-solid fa-layer-group text-xs"></i>
+        <span>CATÁLOGO</span>
+      </button>
+
+      <!-- Botón Carrito -->
+      <button onclick="navegarA('carrito')" class="relative flex items-center space-x-2 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-900/60 to-cyan-950/60 border border-neonCyan/30 hover:border-neonCyan transition-all shadow-glowCyanSm">
+        <i class="fa-solid fa-cart-shopping text-neonCyan"></i>
+        <span class="hidden sm:inline font-rajdhani font-bold text-sm tracking-wide">CARRITO</span>
+        <span id="badgeCarritoCount" class="w-5 h-5 rounded-full bg-neonCyan text-black font-orbitron font-black text-xs flex items-center justify-center shadow-glowCyanSm">0</span>
+      </button>
+
+      <!-- Usuario & Sesión -->
+      <div id="usuarioSesionWidget" class="flex items-center space-x-2">
+        <!-- Renderizado dinámico de usuario autenticado o botón login -->
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- CONTENEDOR PRINCIPAL MULTI-PANTALLA        -->
+  <!-- ========================================== -->
+  <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-7xl">
+
+    <!-- ================================================= -->
+    <!-- 1. PANTALLA DE AUTENTICACIÓN (LOGIN & REGISTRO)  -->
+    <!-- ================================================= -->
+    <section id="pantallaAuth" class="min-h-[75vh] flex items-center justify-center py-6">
+      <div class="w-full max-w-md">
+        <!-- Contenedor Glassmorphism -->
+        <div class="glass-panel rounded-2xl p-6 sm:p-8 relative overflow-hidden border border-neonPurple/40 shadow-glowPurple">
+          
+          <!-- Elementos decorativos cyberpunk -->
+          <div class="absolute -top-10 -right-10 w-32 h-32 bg-neonCyan/15 rounded-full blur-2xl pointer-events-none"></div>
+          <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-neonPurple/20 rounded-full blur-2xl pointer-events-none"></div>
+
+          <!-- Selector de pestañas: Iniciar Sesión / Registro -->
+          <div class="flex items-center justify-center p-1 mb-6 rounded-xl bg-[#080812]/80 border border-purple-500/25">
+            <button id="tabBtnLogin" onclick="cambiarTabAuth('login')" class="w-1/2 py-2 rounded-lg font-orbitron text-xs sm:text-sm font-bold tracking-wider transition-all duration-300 bg-gradient-to-r from-neonPurple to-purple-700 text-white shadow-glowPurpleSm">
+              <i class="fa-solid fa-right-to-bracket mr-1.5"></i> INICIAR SESIÓN
+            </button>
+            <button id="tabBtnRegistro" onclick="cambiarTabAuth('registro')" class="w-1/2 py-2 rounded-lg font-orbitron text-xs sm:text-sm font-bold tracking-wider transition-all duration-300 text-gray-400 hover:text-neonCyan">
+              <i class="fa-solid fa-user-plus mr-1.5"></i> REGISTRO
+            </button>
+          </div>
+
+          <!-- --------------------------------- -->
+          <!-- FORMULARIO: LOGIN                 -->
+          <!-- --------------------------------- -->
+          <div id="formLoginContainer">
+            <div class="text-center mb-6">
+              <h2 class="font-orbitron font-bold text-2xl text-white text-glow-cyan">ACCESO AL SISTEMA</h2>
+              <p class="text-xs text-purple-300 mt-1 font-rajdhani tracking-wider">Identifícate con tus credenciales registradas</p>
+            </div>
+
+            <!-- Mensaje de Error Dinámico -->
+            <div id="loginErrorMsg" class="hidden mb-4 p-3 rounded-lg bg-red-950/80 border border-red-500 text-red-300 text-xs font-semibold text-center flex items-center justify-center space-x-2 animate-bounce">
+              <i class="fa-solid fa-triangle-exclamation text-red-400 text-sm"></i>
+              <span id="loginErrorMsgText">⚠️ Contraseña inválida</span>
+            </div>
+
+            <form id="formLogin" onsubmit="procesarLogin(event)" class="space-y-4">
+              <div>
+                <label class="block font-rajdhani font-semibold text-xs tracking-wider text-purple-200 mb-1.5">CORREO ELECTRÓNICO</label>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-purple-400">
+                    <i class="fa-solid fa-envelope"></i>
+                  </span>
+                  <input type="email" id="loginCorreo" required placeholder="usuario@cybernexus.io" class="w-full pl-10 pr-4 py-2.5 rounded-lg glass-input text-sm font-mono placeholder:text-gray-600 focus:text-neonCyan" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block font-rajdhani font-semibold text-xs tracking-wider text-purple-200 mb-1.5">CONTRASEÑA</label>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-purple-400">
+                    <i class="fa-solid fa-lock"></i>
+                  </span>
+                  <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 rounded-lg glass-input text-sm font-mono placeholder:text-gray-600 focus:text-neonCyan" />
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between text-xs font-rajdhani">
+                <label class="flex items-center space-x-2 cursor-pointer text-gray-400 hover:text-white">
+                  <input type="checkbox" id="recordarSesion" checked class="rounded border-purple-500/50 text-neonCyan focus:ring-neonCyan bg-[#080812]" />
+                  <span>Recordar sesión</span>
+                </label>
+                <span class="text-neonCyan cursor-pointer hover:underline" onclick="usarCredencialesDemo()">¿Usar Demo?</span>
+              </div>
+
+              <button type="submit" id="btnSubmitLogin" class="w-full py-3 rounded-xl bg-gradient-to-r from-neonCyan via-teal-400 to-neonPurple text-black font-orbitron font-extrabold text-sm tracking-wider uppercase shadow-glowCyan hover:shadow-glowPurple hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-bolt"></i>
+                <span id="btnSubmitLoginText">INGRESAR AHORA</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- --------------------------------- -->
+          <!-- FORMULARIO: REGISTRO              -->
+          <!-- --------------------------------- -->
+          <div id="formRegistroContainer" class="hidden">
+            <div class="text-center mb-6">
+              <h2 class="font-orbitron font-bold text-2xl text-white text-glow-purple">CREAR CUENTA</h2>
+              <p class="text-xs text-cyan-300 mt-1 font-rajdhani tracking-wider">Sincronización instantánea con Google Sheets ('Usuarios')</p>
+            </div>
+
+            <!-- Mensaje de Éxito / Feedback de Registro -->
+            <div id="registroStatusMsg" class="hidden mb-4 p-3 rounded-lg text-xs font-semibold text-center flex items-center justify-center space-x-2">
+              <span id="registroStatusMsgText"></span>
+            </div>
+
+            <form id="formRegistro" onsubmit="procesarRegistro(event)" class="space-y-3.5">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-rajdhani font-semibold text-xs tracking-wider text-purple-200 mb-1">NOMBRE</label>
+                  <input type="text" id="regNombre" required placeholder="Elena" class="w-full px-3 py-2 rounded-lg glass-input text-xs font-mono placeholder:text-gray-600 focus:text-neonCyan" />
+                </div>
+                <div>
+                  <label class="block font-rajdhani font-semibold text-xs tracking-wider text-purple-200 mb-1">APELLIDO</label>
+                  <input type="text" id="regApellido" required placeholder="Kovacs" class="w-full px-3 py-2 rounded-lg glass-input text-xs font-mono placeholder:text-gray-600 focus:text-neonCyan" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block font-rajdhani font-semibold text-xs tracking-wider text-purple-200 mb-1">CORREO ELECTRÓNICO</label>
+                <input type="email" id="regCorreo" required placeholder="elena.kovacs@cyber.net" class="w-full px-3 py-2 rounded-lg glass-input text-xs font-mono placeholder:text-gray-600 focus:text-neonCyan" />
+              </div>
+
+              <div class="grid grid-cols-3 gap-3">
+                <div class="col-span-2">
+                  <label class="block font-rajdhani font-semibold text-xs tracking-wider text-purple-200 mb-1">CONTRASEÑA</label>
+                  <input type="password" id="regPassword" required minlength="4" placeholder="Mínimo 4 chars" class="w-full px-3 py-2 rounded-lg glass-input text-xs font-mono placeholder:text-gray-600 focus:text-neonCyan" />
+                </div>
+                <div>
+                  <label class="block font-rajdhani font-semibold text-xs tracking-wider text-purple-200 mb-1">EDAD</label>
+                  <input type="number" id="regEdad" required min="14" max="110" placeholder="28" class="w-full px-3 py-2 rounded-lg glass-input text-xs font-mono placeholder:text-gray-600 focus:text-neonCyan" />
+                </div>
+              </div>
+
+              <button type="submit" id="btnSubmitRegistro" class="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-neonPurple via-fuchsia-600 to-neonCyan text-white font-orbitron font-extrabold text-sm tracking-wider uppercase shadow-glowPurple hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-user-check"></i>
+                <span id="btnSubmitRegistroText">REGISTRAR EN SHEETS</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Pie del Card -->
+          <div class="mt-6 pt-4 border-t border-purple-500/20 text-center">
+            <p class="text-[11px] text-gray-400 font-rajdhani">
+              Pestañas integradas: <span class="text-neonCyan font-mono">Usuarios</span> • <span class="text-neonPurple font-mono">Logins</span> • <span class="text-cyan-400 font-mono">Compras</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================= -->
+    <!-- 2. PANTALLA DE CATÁLOGO (GRID DE PRODUCTOS)      -->
+    <!-- ================================================= -->
+    <section id="pantallaCatalogo" class="hidden space-y-8">
+      
+      <!-- Banner Hero Cyberpunk -->
+      <div class="relative rounded-2xl p-6 sm:p-8 glass-panel border border-neonCyan/30 overflow-hidden shadow-glowCyanSm">
+        <div class="relative z-10 max-w-2xl">
+          <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-neonCyan/40 text-neonCyan text-xs font-mono mb-3">
+            <span class="w-2 h-2 rounded-full bg-neonCyan animate-ping"></span>
+            <span>HARDWARE & BIOTECNOLOGÍA CYBERPUNK 2026</span>
+          </div>
+          <h2 class="font-orbitron font-extrabold text-2xl sm:text-4xl text-white tracking-wide">
+            CATÁLOGO <span class="text-transparent bg-clip-text bg-gradient-to-r from-neonCyan to-neonPurple">NEURAL STORE</span>
+          </h2>
+          <p class="text-sm sm:text-base text-gray-300 mt-2 font-rajdhani tracking-wide">
+            Productos cargados en tiempo real desde la pestaña <code class="text-neonCyan bg-black/50 px-1.5 py-0.5 rounded border border-cyan-500/30 font-mono text-xs">'Productos'</code> de tu Google Sheets. Con descuentos automáticos y entrega ultrarrápida.
+          </p>
+        </div>
+        <div class="absolute right-4 bottom-2 opacity-20 sm:opacity-40 text-8xl text-neonPurple pointer-events-none">
+          <i class="fa-solid fa-microchip"></i>
+        </div>
+      </div>
+
+      <!-- Barra de Filtros, Búsqueda y Actualización -->
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl glass-panel-purple border border-purple-500/20">
+        <div class="relative w-full sm:w-80">
+          <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-purple-400">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </span>
+          <input type="text" id="buscadorProductos" oninput="filtrarProductos()" placeholder="Buscar producto por nombre..." class="w-full pl-10 pr-4 py-2 rounded-lg glass-input text-xs font-mono placeholder:text-gray-500" />
+        </div>
+
+        <div class="flex items-center space-x-3 w-full sm:w-auto justify-end">
+          <span id="contadorProductosCargados" class="text-xs font-mono text-purple-300">Cargando ítems...</span>
+          <button onclick="cargarProductosDesdeAPI(true)" title="Recargar desde Google Sheets" class="px-3 py-2 rounded-lg bg-cyan-950/80 border border-neonCyan/40 text-neonCyan hover:bg-neonCyan hover:text-black transition-all text-xs font-orbitron flex items-center space-x-1.5 shadow-glowCyanSm">
+            <i class="fa-solid fa-arrows-rotate" id="refreshIcon"></i>
+            <span>ACTUALIZAR</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Grid de Productos -->
+      <div id="gridProductos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <!-- Render dinámico de productos vía JavaScript -->
+      </div>
+
+      <!-- Empty State si no hay resultados -->
+      <div id="emptyCatalogState" class="hidden py-16 text-center glass-panel rounded-2xl border border-dashed border-purple-500/40">
+        <i class="fa-solid fa-box-open text-5xl text-purple-400 mb-3"></i>
+        <h3 class="font-orbitron font-bold text-lg text-white">No se encontraron productos</h3>
+        <p class="text-xs text-gray-400 mt-1 font-rajdhani">Verifica el término de búsqueda o la sincronización con Google Sheets.</p>
+        <button onclick="cargarProductosDesdeAPI(true)" class="mt-4 px-4 py-2 rounded-lg bg-neonCyan text-black font-orbitron text-xs font-bold shadow-glowCyan">
+          Reintentar Conexión
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ================================================= -->
+    <!-- 3. PANTALLA DE CARRITO Y CHECKOUT                -->
+    <!-- ================================================= -->
+    <section id="pantallaCarrito" class="hidden space-y-8">
+      
+      <!-- Encabezado del Carrito -->
+      <div class="flex items-center justify-between pb-4 border-b border-purple-500/20">
+        <div>
+          <h2 class="font-orbitron font-bold text-2xl sm:text-3xl text-white text-glow-cyan flex items-center space-x-3">
+            <i class="fa-solid fa-cart-shopping text-neonCyan"></i>
+            <span>TU CARRITO CYBERNÉTICO</span>
+          </h2>
+          <p class="text-xs sm:text-sm text-purple-300 font-rajdhani mt-1">Revisa tus ítems seleccionados y confirma tu orden segura</p>
+        </div>
+        <button onclick="navegarA('catalogo')" class="px-3 py-1.5 rounded-lg border border-cyan-500/40 text-neonCyan hover:bg-cyan-950/60 text-xs font-orbitron transition-all">
+          <i class="fa-solid fa-arrow-left mr-1"></i> SEGUIR COMPRANDO
+        </button>
+      </div>
+
+      <!-- Layout 2 Columnas: Lista de Ítems + Resumen de Compra -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Columna Izquierda: Tabla/Lista de Ítems -->
+        <div class="lg:col-span-2 space-y-4">
+          <div id="listaItemsCarrito" class="space-y-3">
+            <!-- Renderizado dinámico de items en el carrito -->
+          </div>
+
+          <!-- Carrito Vacío -->
+          <div id="carritoVacioMsg" class="hidden py-16 text-center glass-panel rounded-2xl border border-purple-500/30">
+            <div class="w-16 h-16 mx-auto rounded-full bg-purple-950/80 border border-purple-500/40 flex items-center justify-center text-2xl text-purple-400 mb-4 shadow-glowPurpleSm">
+              <i class="fa-solid fa-bag-shopping"></i>
+            </div>
+            <h3 class="font-orbitron font-bold text-lg text-white">Tu carrito está completamente vacío</h3>
+            <p class="text-xs text-gray-400 mt-1 font-rajdhani">Añade mejoras cibernéticas y productos desde nuestro catálogo interactivo.</p>
+            <button onclick="navegarA('catalogo')" class="mt-5 px-6 py-2.5 rounded-xl bg-gradient-to-r from-neonCyan to-teal-400 text-black font-orbitron font-bold text-xs tracking-wider uppercase shadow-glowCyan hover:scale-105 transition-all">
+              EXPLORAR PRODUCTOS
+            </button>
+          </div>
+        </div>
+
+        <!-- Columna Derecha: Métodos de Pago & Resumen de Cuenta -->
+        <div class="space-y-6">
+          
+          <!-- Contenedor Resumen -->
+          <div class="glass-panel-purple rounded-2xl p-6 border border-purple-500/30 shadow-glowPurpleSm space-y-5">
+            <h3 class="font-orbitron font-bold text-lg text-white border-b border-purple-500/20 pb-2 flex items-center justify-between">
+              <span>RESUMEN DE PAGO</span>
+              <i class="fa-solid fa-receipt text-neonPurple"></i>
+            </h3>
+
+            <!-- Desglose de Precios -->
+            <div class="space-y-2 text-xs font-mono">
+              <div class="flex justify-between text-gray-400">
+                <span>Subtotal Bruto:</span>
+                <span id="resumenSubtotalBruto" class="text-gray-200 font-bold">$0.00</span>
+              </div>
+              <div class="flex justify-between text-emerald-400">
+                <span>Descuento Total:</span>
+                <span id="resumenDescuentoTotal" class="font-bold">-$0.00</span>
+              </div>
+              <div class="flex justify-between text-gray-400">
+                <span>Envío CyberExpress:</span>
+                <span class="text-neonCyan font-bold">GRATIS (3 días)</span>
+              </div>
+              <div class="border-t border-purple-500/30 pt-3 flex justify-between items-baseline">
+                <span class="font-orbitron font-bold text-sm text-white">TOTAL NETO:</span>
+                <span id="resumenTotalNeto" class="font-orbitron font-black text-2xl text-neonCyan text-glow-cyan">$0.00</span>
+              </div>
+            </div>
+
+            <!-- Selector de Métodos de Pago requeridos -->
+            <div class="pt-2">
+              <label class="block font-rajdhani font-bold text-xs tracking-wider text-purple-200 mb-2">
+                MÉTODO DE PAGO
+              </label>
+              <div class="grid grid-cols-2 gap-2 text-xs font-rajdhani">
+                <!-- Efectivo -->
+                <label class="payment-method-card flex items-center p-3 rounded-xl border border-purple-500/30 bg-[#080812]/80 hover:border-neonCyan cursor-pointer transition-all">
+                  <input type="radio" name="metodoPago" value="Efectivo" checked onchange="actualizarMetodoPagoUI()" class="text-neonCyan focus:ring-neonCyan" />
+                  <div class="ml-2.5">
+                    <div class="font-bold text-white text-xs">Efectivo</div>
+                    <div class="text-[10px] text-gray-400">Pago en entrega</div>
+                  </div>
+                </label>
+
+                <!-- Tarjeta -->
+                <label class="payment-method-card flex items-center p-3 rounded-xl border border-purple-500/30 bg-[#080812]/80 hover:border-neonCyan cursor-pointer transition-all">
+                  <input type="radio" name="metodoPago" value="Tarjeta" onchange="actualizarMetodoPagoUI()" class="text-neonCyan focus:ring-neonCyan" />
+                  <div class="ml-2.5">
+                    <div class="font-bold text-white text-xs">Tarjeta</div>
+                    <div class="text-[10px] text-gray-400">Crédito / Débito</div>
+                  </div>
+                </label>
+
+                <!-- Cuenta Corriente -->
+                <label class="payment-method-card flex items-center p-3 rounded-xl border border-purple-500/30 bg-[#080812]/80 hover:border-neonCyan cursor-pointer transition-all">
+                  <input type="radio" name="metodoPago" value="Cuenta Corriente" onchange="actualizarMetodoPagoUI()" class="text-neonCyan focus:ring-neonCyan" />
+                  <div class="ml-2.5">
+                    <div class="font-bold text-white text-xs">Cta. Corriente</div>
+                    <div class="text-[10px] text-gray-400">Transferencia</div>
+                  </div>
+                </label>
+
+                <!-- Cuenta Ahorros -->
+                <label class="payment-method-card flex items-center p-3 rounded-xl border border-purple-500/30 bg-[#080812]/80 hover:border-neonCyan cursor-pointer transition-all">
+                  <input type="radio" name="metodoPago" value="Cuenta Ahorros" onchange="actualizarMetodoPagoUI()" class="text-neonCyan focus:ring-neonCyan" />
+                  <div class="ml-2.5">
+                    <div class="font-bold text-white text-xs">Cta. Ahorros</div>
+                    <div class="text-[10px] text-gray-400">Transferencia</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Datos simulados de tarjeta si se selecciona Tarjeta -->
+            <div id="tarjetaExtraFields" class="hidden p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 space-y-2">
+              <div class="flex justify-between items-center text-[10px] text-purple-300 font-mono">
+                <span>SIMULADOR DE TARJETA NEÓN</span>
+                <i class="fa-brands fa-cc-visa text-neonCyan text-base"></i>
+              </div>
+              <input type="text" placeholder="4532 •••• •••• 8921" maxlength="19" value="4532 9901 8420 8921" class="w-full px-3 py-1.5 rounded glass-input text-xs font-mono" />
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" placeholder="MM/AA" value="12/28" class="px-2 py-1 rounded glass-input text-xs font-mono text-center" />
+                <input type="password" placeholder="CVV" value="923" maxlength="4" class="px-2 py-1 rounded glass-input text-xs font-mono text-center" />
+              </div>
+            </div>
+
+            <!-- Botón Confirmar Compra -->
+            <button id="btnConfirmarCompra" onclick="confirmarCompra()" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-neonCyan via-teal-400 to-neonPurple text-black font-orbitron font-black text-sm tracking-widest uppercase shadow-glowCyan hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center space-x-2">
+              <i class="fa-solid fa-lock text-sm"></i>
+              <span id="btnConfirmarCompraText">CONFIRMAR COMPRA</span>
+            </button>
+
+            <p class="text-[10px] text-center text-gray-400 font-mono">
+              <i class="fa-solid fa-shield-halved text-neonCyan mr-1"></i> Se enviará acción <code class="text-purple-300">'registrarCompra'</code> a Sheets
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- PIE DE PÁGINA (CYBERPUNK FOOTER)           -->
+  <!-- ========================================== -->
+  <footer class="w-full glass-panel border-t border-purple-500/20 py-4 px-6 mt-12 text-center text-xs text-gray-400 font-rajdhani">
+    <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-neonCyan"></span>
+        <span class="font-orbitron text-white text-xs">CYBERNEXUS PROTOCOL</span>
+        <span>• Conexión directa Google Sheets DB</span>
+      </div>
+      <div>
+        <span>Acciones API: <span class="text-neonCyan font-mono">registrarUsuario</span> | <span class="text-neonPurple font-mono">registrarLogin</span> | <span class="text-cyan-400 font-mono">registrarCompra</span></span>
+      </div>
+      <div class="text-[11px] text-gray-500">
+        © 2026 CyberNexus Inc. Todos los derechos reservados.
+      </div>
+    </div>
+  </footer>
+
+  <!-- ======================================================= -->
+  <!-- 4. MODAL DE ÉXITO INTERACTIVO (CON CAMIÓN EN CARRETERA) -->
+  <!-- ======================================================= -->
+  <div id="modalExito" class="fixed inset-0 z-50 hidden bg-black/85 backdrop-blur-xl flex items-center justify-center p-4">
+    <div class="relative w-full max-w-xl glass-panel rounded-2xl p-6 sm:p-8 border-2 border-neonCyan shadow-glowCyan overflow-hidden text-center">
+      
+      <!-- Efecto de luz superior -->
+      <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-48 h-48 bg-neonCyan/25 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Icono de éxito y encabezado -->
+      <div class="w-16 h-16 mx-auto rounded-full bg-cyan-950/90 border-2 border-neonCyan flex items-center justify-center text-3xl text-neonCyan mb-4 shadow-glowCyanSm animate-pulse">
+        <i class="fa-solid fa-check"></i>
+      </div>
+
+      <h2 class="font-orbitron font-black text-2xl sm:text-3xl text-white text-glow-cyan tracking-wider">
+        ¡ORDEN PROCESADA CON ÉXITO!
+      </h2>
+      <p class="text-xs font-rajdhani text-purple-300 mt-1 uppercase tracking-widest">
+        Transacción registrada en la pestaña <span class="text-neonCyan font-mono font-bold">'Compras'</span>
+      </p>
+
+      <!-- Mensaje Requerido: Pedido en 3 días -->
+      <div class="my-4 p-3.5 rounded-xl bg-gradient-to-r from-purple-950/80 via-black to-cyan-950/80 border border-neonCyan/40 text-neonCyan font-orbitron font-semibold text-sm sm:text-base tracking-wide shadow-glowCyanSm">
+        <i class="fa-solid fa-satellite-dish mr-2 text-neonPurple"></i>
+        ¡Tu pedido llegará en 3 días! Gracias por comprar con nosotros.
+      </div>
+
+      <!-- Datos de la Factura Simulada -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-4 p-3.5 rounded-xl bg-[#080812]/90 border border-purple-500/30 text-left font-mono text-xs">
+        <div>
+          <span class="text-[10px] text-gray-400 block font-rajdhani uppercase">ID FACTURA</span>
+          <span id="modalFacturaId" class="text-neonCyan font-bold">FAC-2026-0000</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-gray-400 block font-rajdhani uppercase">FECHA</span>
+          <span id="modalFacturaFecha" class="text-white">2026-09-28</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-gray-400 block font-rajdhani uppercase">MÉTODO</span>
+          <span id="modalFacturaMetodo" class="text-purple-300">Tarjeta</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-gray-400 block font-rajdhani uppercase">TOTAL PAGADO</span>
+          <span id="modalFacturaTotal" class="text-neonCyan font-black text-sm">$0.00</span>
+        </div>
+      </div>
+
+      <!-- ============================================== -->
+      <!-- CARRETERA EN CSS PURO CON CAMIÓN CONTINUO      -->
+      <!-- ============================================== -->
+      <div class="my-5 text-left">
+        <div class="flex items-center justify-between text-[11px] font-mono text-cyan-300 mb-1 px-1">
+          <span><i class="fa-solid fa-route text-neonCyan mr-1"></i> RUTA CYBER-EXPRESS: EN TRÁNSITO</span>
+          <span class="text-emerald-400 font-bold">3 DÍAS ESTIMADOS</span>
+        </div>
+
+        <!-- Pista de la carretera -->
+        <div class="road-track h-20 rounded-xl relative shadow-inner flex items-center">
+          <!-- Líneas centrales punteadas en movimiento -->
+          <div class="road-lines"></div>
+
+          <!-- Luces de poste o ciudad neon a los lados -->
+          <div class="absolute inset-x-0 top-1 flex justify-between px-4 text-[9px] text-neonPurple/40">
+            <span>▲</span><span>▲</span><span>▲</span><span>▲</span><span>▲</span><span>▲</span><span>▲</span>
+          </div>
+
+          <!-- Contenedor del camión con FontAwesome fa-truck-fast -->
+          <div class="truck-container z-20 flex items-center space-x-2">
+            <div class="relative">
+              <!-- Camión de FontAwesome con resplandor neón -->
+              <i class="fa-solid fa-truck-fast text-neonCyan text-3xl sm:text-4xl drop-shadow-[0_0_12px_#00f5d4]"></i>
+              <!-- Estela o partículas del motor -->
+              <span class="absolute -left-3 top-1/2 -translate-y-1/2 w-4 h-1.5 bg-gradient-to-l from-neonCyan to-transparent rounded-full animate-ping"></span>
+            </div>
+            <span class="hidden sm:inline-block px-1.5 py-0.5 rounded bg-black/80 border border-neonCyan/50 text-[10px] font-mono text-neonCyan font-bold">
+              3 DÍAS
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acciones del Modal: Descargar PDF y Cerrar -->
+      <div class="flex flex-col sm:flex-row gap-3 pt-2">
+        <button id="btnDescargarPdf" onclick="descargarFacturaPDF()" class="w-full sm:w-1/2 py-3 rounded-xl bg-gradient-to-r from-neonPurple to-purple-600 hover:from-purple-600 hover:to-neonCyan text-white font-orbitron font-bold text-xs tracking-wider uppercase shadow-glowPurpleSm hover:shadow-glowCyan transition-all flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-file-pdf text-base"></i>
+          <span>DESCARGAR FACTURA PDF</span>
+        </button>
+
+        <button onclick="cerrarModalExitoYContinuar()" class="w-full sm:w-1/2 py-3 rounded-xl bg-[#080812] border border-cyan-500/50 hover:bg-cyan-950/50 text-neonCyan font-orbitron font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-store"></i>
+          <span>SEGUIR COMPRANDO</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL DE CONFIGURACIÓN Y ESTADO DE GOOGLE SHEETS API    -->
+  <!-- ======================================================= -->
+  <div id="modalConfigAPI" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="w-full max-w-lg glass-panel-purple rounded-2xl p-6 border border-purple-500/40 shadow-glowPurple space-y-4">
+      <div class="flex items-center justify-between border-b border-purple-500/20 pb-3">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-gears text-neonCyan text-lg"></i>
+          <h3 class="font-orbitron font-bold text-white text-base">CONEXIÓN GOOGLE SHEETS</h3>
+        </div>
+        <button onclick="cerrarModalConfigAPI()" class="text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="text-xs text-gray-300 space-y-3 font-rajdhani text-sm leading-relaxed">
+        <p>
+          Esta aplicación se comunica con un Web App desplegado en <span class="text-neonCyan font-bold">Google Apps Script</span> vinculado a tu hoja de cálculo con las 4 pestañas requeridas:
+        </p>
+        <ul class="list-disc list-inside text-xs font-mono text-purple-300 space-y-1 bg-black/50 p-3 rounded-xl border border-purple-500/30">
+          <li><b class="text-neonCyan">Productos:</b> ID, Nombre, Precio, Imagen_URL, Descuento</li>
+          <li><b class="text-neonCyan">Usuarios:</b> Nombre, Apellido, Correo, Contrasena, Edad</li>
+          <li><b class="text-neonCyan">Logins:</b> Nombre, Fecha, Hora</li>
+          <li><b class="text-neonCyan">Compras:</b> ID_Compra, Usuario, Total_Pagado, Metodo_Pago, Fecha, Hora, Productos</li>
+        </ul>
+
+        <div>
+          <label class="block font-mono text-xs text-purple-200 mb-1">URL Actual de la API (Apps Script):</label>
+          <input type="text" id="customApiUrlInput" placeholder="https://script.google.com/macros/s/..." class="w-full px-3 py-2 rounded-lg glass-input text-xs font-mono" />
+          <p class="text-[11px] text-gray-400 mt-1">Por defecto la constante es <code class="text-neonCyan font-mono">const API_URL = "SU_URL_AQUI";</code>. Si no se cambia, opera en modo prototipo con datos seguros precargados.</p>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-y-0 space-x-3 pt-2">
+        <button onclick="guardarUrlPersonalizada()" class="px-4 py-2 rounded-lg bg-neonCyan text-black font-orbitron font-bold text-xs shadow-glowCyan">
+          GUARDAR Y PROBAR
+        </button>
+        <button onclick="cerrarModalConfigAPI()" class="px-3 py-2 rounded-lg border border-purple-500/40 text-purple-300 font-orbitron text-xs">
+          CERRAR
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- PLANTILLA OCULTA LIMPIA Y CORPORATIVA PARA HTML2PDF.JS  -->
+  <!-- ======================================================= -->
+  <div id="factura-pdf-template" style="background:#ffffff; color:#1a202c; padding:32px; font-family:'Helvetica Neue', Arial, sans-serif;">
+    <!-- Encabezado corporativo -->
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #00f5d4; padding-bottom:16px; margin-bottom:20px;">
+      <div>
+        <h1 style="font-size:24px; font-weight:800; color:#0b0f19; margin:0;">CYBERNEXUS CORP.</h1>
+        <p style="font-size:11px; color:#4a5568; margin:2px 0 0 0;">División de Suministros Tecnológicos • RFC: CYB-2026-9901</p>
+        <p style="font-size:11px; color:#718096; margin:2px 0 0 0;">Sincronizado vía Google Sheets Cloud Database</p>
+      </div>
+      <div style="text-align:right;">
+        <span style="display:inline-block; background:#0b0f19; color:#00f5d4; font-weight:bold; font-size:14px; padding:6px 14px; border-radius:6px;">
+          FACTURA ELECTRÓNICA
+        </span>
+        <p id="pdfFacturaNumero" style="font-size:13px; font-weight:bold; color:#2d3748; margin:8px 0 0 0;">FOLIO: FAC-2026-0000</p>
+      </div>
+    </div>
+
+    <!-- Metadatos de Facturación -->
+    <div style="display:flex; justify-content:space-between; margin-bottom:24px; background:#f7fafc; padding:14px; border-radius:8px; border:1px solid #e2e8f0;">
+      <div>
+        <p style="font-size:11px; font-weight:bold; color:#718096; margin:0 0 4px 0; text-transform:uppercase;">Facturado a:</p>
+        <p id="pdfClienteNombre" style="font-size:13px; font-weight:bold; color:#1a202c; margin:0;">Cliente Registrado</p>
+        <p id="pdfClienteCorreo" style="font-size:11px; color:#4a5568; margin:2px 0 0 0;">cliente@email.com</p>
+      </div>
+      <div style="text-align:right;">
+        <p style="font-size:11px; font-weight:bold; color:#718096; margin:0 0 4px 0; text-transform:uppercase;">Detalles de Emisión:</p>
+        <p style="font-size:11px; color:#2d3748; margin:0;">Fecha: <b id="pdfFacturaFecha">2026-09-28</b></p>
+        <p style="font-size:11px; color:#2d3748; margin:2px 0 0 0;">Hora: <b id="pdfFacturaHora">12:00:00</b></p>
+        <p style="font-size:11px; color:#2d3748; margin:2px 0 0 0;">Método: <b id="pdfFacturaMetodo">Tarjeta</b></p>
+        <p style="font-size:11px; color:#0d9488; font-weight:bold; margin:2px 0 0 0;">Entrega estimada: 3 Días Hábiles</p>
+      </div>
+    </div>
+
+    <!-- Tabla de Productos -->
+    <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-size:12px;">
+      <thead>
+        <tr style="background:#0b0f19; color:#ffffff;">
+          <th style="padding:8px 10px; text-align:left;">ID</th>
+          <th style="padding:8px 10px; text-align:left;">Descripción del Producto</th>
+          <th style="padding:8px 10px; text-align:center;">Cant.</th>
+          <th style="padding:8px 10px; text-align:right;">P. Unit.</th>
+          <th style="padding:8px 10px; text-align:right;">Desc.</th>
+          <th style="padding:8px 10px; text-align:right;">Total Neto</th>
+        </tr>
+      </thead>
+      <tbody id="pdfTablaProductosCuerpo">
+        <!-- Filas de productos inyectadas dinámicamente -->
+      </tbody>
+    </table>
+
+    <!-- Totales -->
+    <div style="display:flex; justify-content:flex-end; margin-bottom:24px;">
+      <div style="width:240px; font-size:12px;">
+        <div style="display:flex; justify-content:space-between; padding:4px 0; color:#4a5568;">
+          <span>Subtotal Bruto:</span>
+          <span id="pdfSubtotalBruto" style="font-weight:600;">$0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:4px 0; color:#059669;">
+          <span>Descuento aplicado:</span>
+          <span id="pdfDescuentoTotal" style="font-weight:600;">-$0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:4px 0; color:#4a5568;">
+          <span>Flete CyberExpress:</span>
+          <span style="font-weight:600; color:#0d9488;">$0.00 (Gratis)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:8px 0; border-top:2px solid #0b0f19; font-size:15px; font-weight:800; color:#0b0f19; margin-top:4px;">
+          <span>TOTAL PAGADO:</span>
+          <span id="pdfTotalNeto" style="color:#0f766e;">$0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sello y Garantía -->
+    <div style="border-top:1px dashed #cbd5e0; padding-top:14px; font-size:10px; color:#718096; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <p style="margin:0; font-weight:bold; color:#2d3748;">¡Tu pedido llegará en 3 días! Gracias por comprar con nosotros.</p>
+        <p style="margin:2px 0 0 0;">Este documento es un comprobante fiscal digital generado automáticamente.</p>
+      </div>
+      <div style="border:1px solid #a0aec0; padding:4px 10px; border-radius:4px; text-align:center; font-family:monospace;">
+        SELLO DIGITAL VALIDADO<br>GOOGLE SHEETS DB 2026
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- SCRIPT LÓGICO PRINCIPAL                                 -->
+  <!-- ======================================================= -->
+  <script>
+    // =====================================================
+    // 0. CONSTANTE GLOBAL OBLIGATORIA
+    // =====================================================
+    const API_URL = "SU_URL_AQUI";
+
+    // URL efectiva (Permite probar también desde el modal si se añade una URL real de Google Apps Script)
+    function obtenerApiUrlEfectiva() {
+      const customUrl = localStorage.getItem("CYBER_CUSTOM_API_URL");
+      if (customUrl && customUrl.trim().length > 0) {
+        return customUrl.trim();
+      }
+      return API_URL;
+    }
+
+    // =====================================================
+    // 1. ESTADO GLOBAL DE LA APLICACIÓN
+    // =====================================================
+    let usuarioActual = null;
+    let productosCatalogo = [];
+    let carrito = [];
+    let ultimaCompraInfo = null;
+
+    // Catálogo de respaldo inicial (Estructura de la pestaña 'Productos')
+    // Columnas requeridas: ID, Nombre, Precio, Imagen_URL, Descuento
+    const PRODUCTOS_DEMO = [
+      {
+        ID: "PRD-001",
+        Nombre: "Procesador Neural CyberCore V9",
+        Precio: 450.00,
+        Imagen_URL: "https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=600&q=80",
+        Descuento: "18%"
+      },
+      {
+        ID: "PRD-002",
+        Nombre: "Visor Holo-Óptico HUD Retina",
+        Precio: 320.00,
+        Imagen_URL: "https://images.unsplash.com/photo-1622979135225-d2ba269bc1df?auto=format&fit=crop&w=600&q=80",
+        Descuento: "25%"
+      },
+      {
+        ID: "PRD-003",
+        Nombre: "Brazo Biónico Titanio Grado Quirúrgico",
+        Precio: 1200.00,
+        Imagen_URL: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80",
+        Descuento: ""
+      },
+      {
+        ID: "PRD-004",
+        Nombre: "Unidad Memoria Cuántica 128TB",
+        Precio: 180.00,
+        Imagen_URL: "https://images.unsplash.com/photo-1597733336794-12d05021d510?auto=format&fit=crop&w=600&q=80",
+        Descuento: "10%"
+      },
+      {
+        ID: "PRD-005",
+        Nombre: "Dron de Reconocimiento Némesis Stealth",
+        Precio: 799.00,
+        Imagen_URL: "https://images.unsplash.com/photo-1527977966376-1c8408f9f108?auto=format&fit=crop&w=600&q=80",
+        Descuento: "30%"
+      },
+      {
+        ID: "PRD-006",
+        Nombre: "Chaqueta Térmica Fibra Óptica Neón",
+        Precio: 240.00,
+        Imagen_URL: "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=600&q=80",
+        Descuento: "15%"
+      },
+      {
+        ID: "PRD-007",
+        Nombre: "Teclado Holográfico Láser Zero-Lag",
+        Precio: 110.00,
+        Imagen_URL: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80",
+        Descuento: ""
+      },
+      {
+        ID: "PRD-008",
+        Nombre: "Inyector Nanomédico Regenerativo",
+        Precio: 620.00,
+        Imagen_URL: "https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=600&q=80",
+        Descuento: "20%"
+      }
+    ];
+
+    // Usuarios iniciales simulados (Estructura pestaña 'Usuarios')
+    const USUARIOS_DEMO = [
+      {
+        Nombre: "Elena",
+        Apellido: "Kovacs",
+        Correo: "elena@cybernexus.io",
+        Contrasena: "neon2026",
+        Edad: 29
+      },
+      {
+        Nombre: "Deckard",
+        Apellido: "Blade",
+        Correo: "deckard@bladerunner.org",
+        Contrasena: "nexus6",
+        Edad: 38
+      }
+    ];
+
+    // =====================================================
+    // 2. INICIALIZACIÓN AL CARGAR LA PÁGINA
+    // =====================================================
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Restaurar usuario de localStorage si existe
+      recuperarSesion();
+
+      // 2. Restaurar carrito guardado si existe
+      recuperarCarrito();
+
+      // 3. Inicializar campo de URL personalizada en el modal
+      const customUrl = localStorage.getItem("CYBER_CUSTOM_API_URL") || "";
+      const inputEl = document.getElementById("customApiUrlInput");
+      if (inputEl) inputEl.value = customUrl;
+
+      // 4. Actualizar indicador visual de API
+      actualizarIndicadorAPI();
+
+      // 5. Cargar catálogo de productos
+      cargarProductosDesdeAPI();
+    });
+
+    // =====================================================
+    // 3. NAVEGACIÓN Y CONTROL DE VISTAS
+    // =====================================================
+    function navegarA(seccion) {
+      const pAuth = document.getElementById("pantallaAuth");
+      const pCatalogo = document.getElementById("pantallaCatalogo");
+      const pCarrito = document.getElementById("pantallaCarrito");
+
+      pAuth.classList.add("hidden");
+      pCatalogo.classList.add("hidden");
+      pCarrito.classList.add("hidden");
+
+      if (seccion === "auth") {
+        pAuth.classList.remove("hidden");
+      } else if (seccion === "catalogo") {
+        pCatalogo.classList.remove("hidden");
+      } else if (seccion === "carrito") {
+        renderizarCarrito();
+        pCarrito.classList.remove("hidden");
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cambiarTabAuth(tab) {
+      const btnLogin = document.getElementById("tabBtnLogin");
+      const btnReg = document.getElementById("tabBtnRegistro");
+      const fLogin = document.getElementById("formLoginContainer");
+      const fReg = document.getElementById("formRegistroContainer");
+      const errorMsg = document.getElementById("loginErrorMsg");
+      const regMsg = document.getElementById("registroStatusMsg");
+
+      errorMsg.classList.add("hidden");
+      regMsg.classList.add("hidden");
+
+      if (tab === "login") {
+        btnLogin.className = "w-1/2 py-2 rounded-lg font-orbitron text-xs sm:text-sm font-bold tracking-wider transition-all duration-300 bg-gradient-to-r from-neonPurple to-purple-700 text-white shadow-glowPurpleSm";
+        btnReg.className = "w-1/2 py-2 rounded-lg font-orbitron text-xs sm:text-sm font-bold tracking-wider transition-all duration-300 text-gray-400 hover:text-neonCyan";
+        fLogin.classList.remove("hidden");
+        fReg.classList.add("hidden");
+      } else {
+        btnReg.className = "w-1/2 py-2 rounded-lg font-orbitron text-xs sm:text-sm font-bold tracking-wider transition-all duration-300 bg-gradient-to-r from-neonPurple to-purple-700 text-white shadow-glowPurpleSm";
+        btnLogin.className = "w-1/2 py-2 rounded-lg font-orbitron text-xs sm:text-sm font-bold tracking-wider transition-all duration-300 text-gray-400 hover:text-neonCyan";
+        fReg.classList.remove("hidden");
+        fLogin.classList.add("hidden");
+      }
+    }
+
+    // =====================================================
+    // 4. MÓDULO DE AUTENTICACIÓN & LOGIN (Pestaña 'Usuarios' & 'Logins')
+    // =====================================================
+    function usarCredencialesDemo() {
+      document.getElementById("loginCorreo").value = "elena@cybernexus.io";
+      document.getElementById("loginPassword").value = "neon2026";
+    }
+
+    async function procesarLogin(e) {
+      e.preventDefault();
+      const correo = document.getElementById("loginCorreo").value.trim().toLowerCase();
+      const password = document.getElementById("loginPassword").value;
+      const errorContainer = document.getElementById("loginErrorMsg");
+      const errorText = document.getElementById("loginErrorMsgText");
+      const btnSubmit = document.getElementById("btnSubmitLogin");
+      const btnText = document.getElementById("btnSubmitLoginText");
+
+      errorContainer.classList.add("hidden");
+      btnSubmit.disabled = true;
+      btnText.innerText = "VALIDANDO CREDENCIALES...";
+
+      const url = obtenerApiUrlEfectiva();
+      let usuarioEncontrado = null;
+      let passwordInvalido = false;
+
+      try {
+        if (url && url !== "SU_URL_AQUI") {
+          // Intento de validación contra Google Sheets API
+          try {
+            const resp = await fetch(url + `?action=obtenerUsuarios&t=${Date.now()}`);
+            if (resp.ok) {
+              const data = await resp.json();
+              const listaUsuarios = Array.isArray(data) ? data : (data.usuarios || []);
+              const usr = listaUsuarios.find(u => (u.Correo || "").toLowerCase() === correo);
+              if (usr) {
+                if (String(usr.Contrasena) === String(password)) {
+                  usuarioEncontrado = usr;
+                } else {
+                  passwordInvalido = true;
+                }
+              }
+            }
+          } catch (netErr) {
+            console.warn("Fallo en GET remoto de usuarios, verificando respaldo local:", netErr);
+          }
+        }
+
+        // Si no se validó remotamente o estamos en modo demo, validar contra base local
+        if (!usuarioEncontrado && !passwordInvalido) {
+          const usuariosLocales = JSON.parse(localStorage.getItem("CYBER_USUARIOS_REGISTRADOS") || "[]");
+          const todosLosUsuarios = [...USUARIOS_DEMO, ...usuariosLocales];
+          const usr = todosLosUsuarios.find(u => (u.Correo || "").toLowerCase() === correo);
+          if (usr) {
+            if (String(usr.Contrasena) === String(password)) {
+              usuarioEncontrado = usr;
+            } else {
+              passwordInvalido = true;
+            }
+          } else {
+            // Usuario no encontrado en absoluto
+            passwordInvalido = true;
+          }
+        }
+
+        if (passwordInvalido || !usuarioEncontrado) {
+          // Requerimiento estricto: texto rojo "⚠️ Contraseña inválida"
+          errorText.innerText = "⚠️ Contraseña inválida";
+          errorContainer.classList.remove("hidden");
+          btnSubmit.disabled = false;
+          btnText.innerText = "INGRESAR AHORA";
+          return;
+        }
+
+        // Éxito: Guardar en localStorage
+        usuarioActual = {
+          Nombre: usuarioEncontrado.Nombre,
+          Apellido: usuarioEncontrado.Apellido || "",
+          Correo: usuarioEncontrado.Correo,
+          Edad: usuarioEncontrado.Edad || ""
+        };
+        localStorage.setItem("CYBER_USUARIO_ACTIVO", JSON.stringify(usuarioActual));
+
+        // Registrar en pestaña 'Logins' vía POST
+        const ahora = new Date();
+        const payloadLogin = {
+          action: "registrarLogin",
+          Nombre: `${usuarioActual.Nombre} ${usuarioActual.Apellido}`.trim(),
+          Fecha: ahora.toLocaleDateString("es-ES"),
+          Hora: ahora.toLocaleTimeString("es-ES")
+        };
+        enviarPostSheet(payloadLogin);
+
+        // Feedback y transición al catálogo
+        actualizarWidgetUsuario();
+        navegarA("catalogo");
+
+      } catch (err) {
+        console.error("Error durante login:", err);
+        errorText.innerText = "⚠️ Contraseña inválida";
+        errorContainer.classList.remove("hidden");
+      } finally {
+        btnSubmit.disabled = false;
+        btnText.innerText = "INGRESAR AHORA";
+      }
+    }
+
+    async function procesarRegistro(e) {
+      e.preventDefault();
+      const nombre = document.getElementById("regNombre").value.trim();
+      const apellido = document.getElementById("regApellido").value.trim();
+      const correo = document.getElementById("regCorreo").value.trim().toLowerCase();
+      const contrasena = document.getElementById("regPassword").value;
+      const edad = document.getElementById("regEdad").value;
+      
+      const statusMsg = document.getElementById("registroStatusMsg");
+      const statusText = document.getElementById("registroStatusMsgText");
+      const btnSubmit = document.getElementById("btnSubmitRegistro");
+      const btnText = document.getElementById("btnSubmitRegistroText");
+
+      btnSubmit.disabled = true;
+      btnText.innerText = "REGISTRANDO EN SHEETS...";
+
+      const nuevoUsuario = {
+        Nombre: nombre,
+        Apellido: apellido,
+        Correo: correo,
+        Contrasena: contrasena,
+        Edad: parseInt(edad, 10) || edad
+      };
+
+      // 1. Guardar copia local segura
+      const usuariosLocales = JSON.parse(localStorage.getItem("CYBER_USUARIOS_REGISTRADOS") || "[]");
+      usuariosLocales.push(nuevoUsuario);
+      localStorage.setItem("CYBER_USUARIOS_REGISTRADOS", JSON.stringify(usuariosLocales));
+
+      // 2. Enviar POST con acción "registrarUsuario"
+      const payload = {
+        action: "registrarUsuario",
+        ...nuevoUsuario
+      };
+
+      await enviarPostSheet(payload);
+
+      // Mostrar confirmación
+      statusMsg.className = "mb-4 p-3 rounded-lg bg-emerald-950/80 border border-emerald-500 text-emerald-300 text-xs font-semibold text-center flex items-center justify-center space-x-2";
+      statusText.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> ¡Usuario registrado con éxito en 'Usuarios'! Iniciando sesión...`;
+      statusMsg.classList.remove("hidden");
+
+      setTimeout(() => {
+        // Auto-login
+        usuarioActual = {
+          Nombre: nombre,
+          Apellido: apellido,
+          Correo: correo,
+          Edad: edad
+        };
+        localStorage.setItem("CYBER_USUARIO_ACTIVO", JSON.stringify(usuarioActual));
+
+        // Registrar login
+        const ahora = new Date();
+        enviarPostSheet({
+          action: "registrarLogin",
+          Nombre: `${nombre} ${apellido}`.trim(),
+          Fecha: ahora.toLocaleDateString("es-ES"),
+          Hora: ahora.toLocaleTimeString("es-ES")
+        });
+
+        actualizarWidgetUsuario();
+        navegarA("catalogo");
+        btnSubmit.disabled = false;
+        btnText.innerText = "REGISTRAR EN SHEETS";
+      }, 1200);
+    }
+
+    function recuperarSesion() {
+      const guardado = localStorage.getItem("CYBER_USUARIO_ACTIVO");
+      if (guardado) {
+        try {
+          usuarioActual = JSON.parse(guardado);
+        } catch (e) {
+          usuarioActual = null;
+        }
+      }
+      actualizarWidgetUsuario();
+
+      if (usuarioActual) {
+        navegarA("catalogo");
+      } else {
+        navegarA("auth");
+      }
+    }
+
+    function cerrarSesion() {
+      usuarioActual = null;
+      localStorage.removeItem("CYBER_USUARIO_ACTIVO");
+      actualizarWidgetUsuario();
+      navegarA("auth");
+    }
+
+    function actualizarWidgetUsuario() {
+      const widget = document.getElementById("usuarioSesionWidget");
+      if (!widget) return;
+
+      if (usuarioActual) {
+        widget.innerHTML = `
+          <div class="flex items-center space-x-2 bg-[#080812] border border-neonPurple/40 px-3 py-1.5 rounded-lg shadow-glowPurpleSm">
+            <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-neonPurple to-neonCyan flex items-center justify-center text-[10px] text-black font-bold">
+              ${(usuarioActual.Nombre || "U").charAt(0).toUpperCase()}
+            </div>
+            <div class="hidden sm:block text-left">
+              <span class="text-xs font-rajdhani font-bold text-white block leading-none">${usuarioActual.Nombre} ${usuarioActual.Apellido || ''}</span>
+              <span class="text-[9px] font-mono text-neonCyan block leading-none">Online</span>
+            </div>
+            <button onclick="cerrarSesion()" title="Cerrar Sesión" class="text-gray-400 hover:text-red-400 text-xs ml-1 pl-1 border-l border-purple-500/30">
+              <i class="fa-solid fa-power-off"></i>
+            </button>
+          </div>
+        `;
+      } else {
+        widget.innerHTML = `
+          <button onclick="navegarA('auth')" class="px-3 py-1.5 rounded-lg bg-neonPurple/20 border border-neonPurple/50 hover:bg-neonPurple hover:text-white transition-all text-xs font-orbitron font-bold text-purple-200">
+            LOGIN
+          </button>
+        `;
+      }
+    }
+
+    // =====================================================
+    // 5. MÓDULO DE CATÁLOGO & PRODUCTOS (Pestaña 'Productos')
+    // =====================================================
+    async function cargarProductosDesdeAPI(forzarRecarga = false) {
+      const contadorEl = document.getElementById("contadorProductosCargados");
+      const refreshIcon = document.getElementById("refreshIcon");
+      if (refreshIcon) refreshIcon.classList.add("fa-spin");
+      if (contadorEl) contadorEl.innerText = "Sincronizando con Google Sheets...";
+
+      const url = obtenerApiUrlEfectiva();
+      let productosObtenidos = [];
+
+      try {
+        if (url && url !== "SU_URL_AQUI") {
+          const resp = await fetch(`${url}?action=obtenerProductos&t=${Date.now()}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (Array.isArray(data)) {
+              productosObtenidos = data;
+            } else if (data.productos && Array.isArray(data.productos)) {
+              productosObtenidos = data.productos;
+            } else if (data.data && Array.isArray(data.data)) {
+              productosObtenidos = data.data;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("No se pudo obtener datos del endpoint remoto. Cargando catálogo predefinido:", err);
+      }
+
+      // Si no hay productos del endpoint remoto, usar catálogo seguro
+      if (!productosObtenidos || productosObtenidos.length === 0) {
+        productosObtenidos = PRODUCTOS_DEMO;
+      }
+
+      productosCatalogo = productosObtenidos;
+      renderizarCatalogo(productosCatalogo);
+
+      if (refreshIcon) refreshIcon.classList.remove("fa-spin");
+      if (contadorEl) contadorEl.innerText = `${productosCatalogo.length} Ítems disponibles`;
+    }
+
+    function renderizarCatalogo(lista) {
+      const grid = document.getElementById("gridProductos");
+      const emptyState = document.getElementById("emptyCatalogState");
+      if (!grid) return;
+
+      if (!lista || lista.length === 0) {
+        grid.innerHTML = "";
+        emptyState.classList.remove("hidden");
+        return;
+      }
+
+      emptyState.classList.add("hidden");
+      grid.innerHTML = lista.map(item => {
+        // Cálculo de descuento
+        // Si la columna 'Descuento' tiene datos (ej. 18%, 20, 0.15)
+        const descuentoRaw = item.Descuento != null ? String(item.Descuento).trim() : "";
+        let tieneDescuento = false;
+        let porcentajeNum = 0;
+
+        if (descuentoRaw.length > 0 && descuentoRaw !== "0" && descuentoRaw !== "0%") {
+          tieneDescuento = true;
+          porcentajeNum = parseFloat(descuentoRaw.replace("%", ""));
+          if (porcentajeNum > 0 && porcentajeNum < 1) {
+            porcentajeNum = porcentajeNum * 100; // si viene como 0.18
+          }
+        }
+
+        const precioOriginal = parseFloat(item.Precio) || 0;
+        let precioFinal = precioOriginal;
+
+        if (tieneDescuento && porcentajeNum > 0) {
+          precioFinal = precioOriginal - (precioOriginal * (porcentajeNum / 100));
+        }
+
+        return `
+          <div class="glass-panel rounded-2xl overflow-hidden border border-purple-500/25 hover:border-neonCyan transition-all duration-300 flex flex-col justify-between group hover:shadow-glowCyanSm hover:-translate-y-1">
+            
+            <!-- Imagen del Producto y Badge de Descuento -->
+            <div class="relative h-48 sm:h-52 w-full bg-[#080812] overflow-hidden">
+              <img src="${item.Imagen_URL || 'https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=600&q=80'}" 
+                   alt="${item.Nombre}" 
+                   onerror="this.src='https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=600&q=80'"
+                   class="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500 opacity-90 group-hover:opacity-100" />
+              
+              <!-- Gradiente oscuro inferior sobre la imagen -->
+              <div class="absolute inset-0 bg-gradient-to-t from-[#080812] via-transparent to-transparent"></div>
+
+              <!-- Badge ID -->
+              <span class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded bg-black/75 backdrop-blur-md border border-purple-500/30 font-mono text-[10px] text-purple-300">
+                ${item.ID || 'PRD'}
+              </span>
+
+              <!-- Badge Brillante de Descuento si aplica -->
+              ${tieneDescuento ? `
+                <div class="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-neonPink to-neonPurple text-white font-orbitron font-extrabold text-[11px] shadow-glowPurple animate-pulse flex items-center space-x-1">
+                  <i class="fa-solid fa-bolt text-[10px]"></i>
+                  <span>-${Math.round(porcentajeNum)}% OFF</span>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Contenido del Card -->
+            <div class="p-5 flex flex-col flex-grow justify-between space-y-4">
+              <div>
+                <h3 class="font-orbitron font-bold text-white text-base leading-snug group-hover:text-neonCyan transition-colors">
+                  ${item.Nombre}
+                </h3>
+                <div class="flex items-center space-x-2 mt-2">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span class="text-[11px] font-mono text-gray-400">Stock Inmediato • Garantía 3 Años</span>
+                </div>
+              </div>
+
+              <!-- Precios -->
+              <div class="pt-3 border-t border-purple-500/20 flex items-baseline justify-between">
+                <div>
+                  ${tieneDescuento ? `
+                    <span class="text-xs text-gray-400 line-through mr-1 font-mono block leading-none">
+                      $${precioOriginal.toFixed(2)}
+                    </span>
+                  ` : ''}
+                  <span class="font-orbitron font-black text-xl text-neonCyan text-glow-cyan">
+                    $${precioFinal.toFixed(2)}
+                  </span>
+                </div>
+                <button onclick="agregarAlCarrito('${item.ID}')" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-neonCyan to-teal-400 text-black font-orbitron font-bold text-xs tracking-wider uppercase hover:shadow-glowCyan active:scale-95 transition-all flex items-center space-x-1.5">
+                  <i class="fa-solid fa-cart-plus"></i>
+                  <span>AGREGAR</span>
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        `;
+      }).join("");
+    }
+
+    function filtrarProductos() {
+      const termino = document.getElementById("buscadorProductos").value.toLowerCase().trim();
+      if (!termino) {
+        renderizarCatalogo(productosCatalogo);
+        return;
+      }
+      const filtrados = productosCatalogo.filter(p => 
+        (p.Nombre || "").toLowerCase().includes(termino) ||
+        (p.ID || "").toLowerCase().includes(termino)
+      );
+      renderizarCatalogo(filtrados);
+    }
+
+    // =====================================================
+    // 6. MÓDULO DE CARRITO DE COMPRAS
+    // =====================================================
+    function agregarAlCarrito(productoId) {
+      const prod = productosCatalogo.find(p => String(p.ID) === String(productoId));
+      if (!prod) return;
+
+      // Calcular descuento y precio neto unitario
+      const descuentoRaw = prod.Descuento != null ? String(prod.Descuento).trim() : "";
+      let tieneDesc = false;
+      let pct = 0;
+      if (descuentoRaw.length > 0 && descuentoRaw !== "0" && descuentoRaw !== "0%") {
+        tieneDesc = true;
+        pct = parseFloat(descuentoRaw.replace("%", ""));
+        if (pct > 0 && pct < 1) pct = pct * 100;
+      }
+      const pOrig = parseFloat(prod.Precio) || 0;
+      const pNeto = tieneDesc ? (pOrig - (pOrig * (pct / 100))) : pOrig;
+
+      // Buscar si ya existe en el carrito
+      const itemExistente = carrito.find(i => String(i.ID) === String(productoId));
+      if (itemExistente) {
+        itemExistente.cantidad += 1;
+      } else {
+        carrito.push({
+          ID: prod.ID,
+          Nombre: prod.Nombre,
+          PrecioOriginal: pOrig,
+          PrecioNeto: pNeto,
+          DescuentoPct: pct,
+          TieneDescuento: tieneDesc,
+          Imagen_URL: prod.Imagen_URL,
+          cantidad: 1
+        });
+      }
+
+      guardarCarrito();
+      actualizarBadgeCarrito();
+      mostrarNotificacionToast(`"${prod.Nombre}" agregado al carrito`);
+    }
+
+    function modificarCantidad(productoId, delta) {
+      const item = carrito.find(i => String(i.ID) === String(productoId));
+      if (!item) return;
+
+      item.cantidad += delta;
+      if (item.cantidad <= 0) {
+        eliminarDelCarrito(productoId);
+        return;
+      }
+
+      guardarCarrito();
+      actualizarBadgeCarrito();
+      renderizarCarrito();
+    }
+
+    function eliminarDelCarrito(productoId) {
+      carrito = carrito.filter(i => String(i.ID) !== String(productoId));
+      guardarCarrito();
+      actualizarBadgeCarrito();
+      renderizarCarrito();
+    }
+
+    function guardarCarrito() {
+      localStorage.setItem("CYBER_CARRITO_DATA", JSON.stringify(carrito));
+    }
+
+    function recuperarCarrito() {
+      const guardado = localStorage.getItem("CYBER_CARRITO_DATA");
+      if (guardado) {
+        try {
+          carrito = JSON.parse(guardado);
+        } catch (e) {
+          carrito = [];
+        }
+      }
+      actualizarBadgeCarrito();
+    }
+
+    function actualizarBadgeCarrito() {
+      const badge = document.getElementById("badgeCarritoCount");
+      if (!badge) return;
+      const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
+      badge.innerText = totalItems;
+      if (totalItems > 0) {
+        badge.classList.add("scale-125");
+        setTimeout(() => badge.classList.remove("scale-125"), 200);
+      }
+    }
+
+    function renderizarCarrito() {
+      const listaContainer = document.getElementById("listaItemsCarrito");
+      const vacioMsg = document.getElementById("carritoVacioMsg");
+      const subtotalEl = document.getElementById("resumenSubtotalBruto");
+      const descEl = document.getElementById("resumenDescuentoTotal");
+      const totalEl = document.getElementById("resumenTotalNeto");
+
+      if (!listaContainer) return;
+
+      if (carrito.length === 0) {
+        listaContainer.innerHTML = "";
+        vacioMsg.classList.remove("hidden");
+        subtotalEl.innerText = "$0.00";
+        descEl.innerText = "-$0.00";
+        totalEl.innerText = "$0.00";
+        return;
+      }
+
+      vacioMsg.classList.add("hidden");
+
+      let subtotalBruto = 0;
+      let totalNeto = 0;
+
+      listaContainer.innerHTML = carrito.map(item => {
+        const lineaBruto = item.PrecioOriginal * item.cantidad;
+        const lineaNeto = item.PrecioNeto * item.cantidad;
+        subtotalBruto += lineaBruto;
+        totalNeto += lineaNeto;
+
+        return `
+          <div class="glass-panel rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border border-purple-500/20">
+            <!-- Imagen & Título -->
+            <div class="flex items-center space-x-4 w-full sm:w-auto">
+              <img src="${item.Imagen_URL}" alt="${item.Nombre}" class="w-16 h-16 rounded-lg object-cover bg-black border border-cyan-500/30" />
+              <div>
+                <h4 class="font-orbitron font-bold text-white text-sm">${item.Nombre}</h4>
+                <div class="text-xs font-mono text-gray-400 mt-1 flex items-center space-x-2">
+                  <span>Unitario: <b class="text-neonCyan">$${item.PrecioNeto.toFixed(2)}</b></span>
+                  ${item.TieneDescuento ? `
+                    <span class="text-xs text-neonPink font-bold">(-${Math.round(item.DescuentoPct)}%)</span>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+
+            <!-- Controles de Cantidad y Subtotal -->
+            <div class="flex items-center justify-between w-full sm:w-auto sm:space-x-6">
+              <div class="flex items-center space-x-2 bg-[#080812] border border-purple-500/40 rounded-lg p-1">
+                <button onclick="modificarCantidad('${item.ID}', -1)" class="w-7 h-7 rounded text-purple-300 hover:bg-purple-900/50 hover:text-white flex items-center justify-center font-bold">
+                  <i class="fa-solid fa-minus text-xs"></i>
+                </button>
+                <span class="font-orbitron font-bold text-sm text-white px-2">${item.cantidad}</span>
+                <button onclick="modificarCantidad('${item.ID}', 1)" class="w-7 h-7 rounded text-purple-300 hover:bg-purple-900/50 hover:text-white flex items-center justify-center font-bold">
+                  <i class="fa-solid fa-plus text-xs"></i>
+                </button>
+              </div>
+
+              <div class="text-right">
+                <span class="text-xs font-mono text-gray-400 block">Total</span>
+                <span class="font-orbitron font-bold text-neonCyan text-base">$${lineaNeto.toFixed(2)}</span>
+              </div>
+
+              <button onclick="eliminarDelCarrito('${item.ID}')" title="Quitar ítem" class="text-gray-500 hover:text-red-400 p-2">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      const descuentoTotal = subtotalBruto - totalNeto;
+      subtotalEl.innerText = `$${subtotalBruto.toFixed(2)}`;
+      descEl.innerText = `-$${descuentoTotal.toFixed(2)}`;
+      totalEl.innerText = `$${totalNeto.toFixed(2)}`;
+    }
+
+    function actualizarMetodoPagoUI() {
+      const radios = document.getElementsByName("metodoPago");
+      let seleccionado = "Efectivo";
+      for (const r of radios) {
+        if (r.checked) {
+          seleccionado = r.value;
+          break;
+        }
+      }
+
+      const extraTarjeta = document.getElementById("tarjetaExtraFields");
+      if (seleccionado === "Tarjeta") {
+        extraTarjeta.classList.remove("hidden");
+      } else {
+        extraTarjeta.classList.add("hidden");
+      }
+    }
+
+    // =====================================================
+    // 7. CONFIRMACIÓN DE COMPRA & REGISTRO EN SHEETS ('Compras')
+    // =====================================================
+    async function confirmarCompra() {
+      if (carrito.length === 0) {
+        alert("El carrito está vacío. Añade productos antes de confirmar tu compra.");
+        return;
+      }
+
+      // Si no hay usuario logueado, redirigir a auth
+      if (!usuarioActual) {
+        alert("Debes iniciar sesión para confirmar tu compra.");
+        navegarA("auth");
+        return;
+      }
+
+      const radios = document.getElementsByName("metodoPago");
+      let metodoPago = "Efectivo";
+      for (const r of radios) {
+        if (r.checked) {
+          metodoPago = r.value;
+          break;
+        }
+      }
+
+      const btnConfirmar = document.getElementById("btnConfirmarCompra");
+      const btnText = document.getElementById("btnConfirmarCompraText");
+      btnConfirmar.disabled = true;
+      btnText.innerText = "PROCESANDO TRANSACCIÓN...";
+
+      // Calcular montos finales
+      let subtotalBruto = 0;
+      let totalNeto = 0;
+      const nombresProductos = [];
+
+      carrito.forEach(i => {
+        subtotalBruto += (i.PrecioOriginal * i.cantidad);
+        totalNeto += (i.PrecioNeto * i.cantidad);
+        nombresProductos.push(`${i.cantidad}x ${i.Nombre}`);
+      });
+
+      const ahora = new Date();
+      const idCompra = "FAC-" + ahora.getFullYear() + "-" + Math.floor(10000 + Math.random() * 90000);
+      const fechaStr = ahora.toLocaleDateString("es-ES");
+      const horaStr = ahora.toLocaleTimeString("es-ES");
+
+      // Payload requerido para pestaña 'Compras':
+      // ID_Compra, Usuario, Total_Pagado, Metodo_Pago, Fecha, Hora, Productos
+      const payloadCompra = {
+        action: "registrarCompra",
+        ID_Compra: idCompra,
+        Usuario: `${usuarioActual.Nombre} ${usuarioActual.Apellido || ''} (${usuarioActual.Correo})`.trim(),
+        Total_Pagado: totalNeto.toFixed(2),
+        Metodo_Pago: metodoPago,
+        Fecha: fechaStr,
+        Hora: horaStr,
+        Productos: nombresProductos.join(", ")
+      };
+
+      // Enviar POST a Google Sheets
+      await enviarPostSheet(payloadCompra);
+
+      // Guardar información de la última compra para el modal y el PDF
+      ultimaCompraInfo = {
+        idCompra,
+        usuario: usuarioActual,
+        totalNeto,
+        subtotalBruto,
+        descuentoTotal: (subtotalBruto - totalNeto),
+        metodoPago,
+        fecha: fechaStr,
+        hora: horaStr,
+        items: [...carrito]
+      };
+
+      // Vaciar carrito
+      carrito = [];
+      guardarCarrito();
+      actualizarBadgeCarrito();
+
+      btnConfirmar.disabled = false;
+      btnText.innerText = "CONFIRMAR COMPRA";
+
+      // Abrir Modal de Éxito Interactivo
+      abrirModalExito();
+    }
+
+    // =====================================================
+    // 8. MODAL DE ÉXITO INTERACTIVO (Camión en carretera & PDF)
+    // =====================================================
+    function abrirModalExito() {
+      if (!ultimaCompraInfo) return;
+
+      document.getElementById("modalFacturaId").innerText = ultimaCompraInfo.idCompra;
+      document.getElementById("modalFacturaFecha").innerText = ultimaCompraInfo.fecha;
+      document.getElementById("modalFacturaMetodo").innerText = ultimaCompraInfo.metodoPago;
+      document.getElementById("modalFacturaTotal").innerText = `$${ultimaCompraInfo.totalNeto.toFixed(2)}`;
+
+      // Llenar datos de la plantilla PDF limpia
+      prepararPlantillaPDF(ultimaCompraInfo);
+
+      const modal = document.getElementById("modalExito");
+      modal.classList.remove("hidden");
+    }
+
+    function cerrarModalExitoYContinuar() {
+      document.getElementById("modalExito").classList.add("hidden");
+      navegarA("catalogo");
+    }
+
+    function prepararPlantillaPDF(info) {
+      document.getElementById("pdfFacturaNumero").innerText = `FOLIO: ${info.idCompra}`;
+      document.getElementById("pdfClienteNombre").innerText = `${info.usuario.Nombre} ${info.usuario.Apellido || ''}`;
+      document.getElementById("pdfClienteCorreo").innerText = info.usuario.Correo;
+      document.getElementById("pdfFacturaFecha").innerText = info.fecha;
+      document.getElementById("pdfFacturaHora").innerText = info.hora;
+      document.getElementById("pdfFacturaMetodo").innerText = info.metodoPago;
+
+      document.getElementById("pdfSubtotalBruto").innerText = `$${info.subtotalBruto.toFixed(2)}`;
+      document.getElementById("pdfDescuentoTotal").innerText = `-$${info.descuentoTotal.toFixed(2)}`;
+      document.getElementById("pdfTotalNeto").innerText = `$${info.totalNeto.toFixed(2)}`;
+
+      const tablaCuerpo = document.getElementById("pdfTablaProductosCuerpo");
+      tablaCuerpo.innerHTML = info.items.map(item => {
+        const totalFila = item.PrecioNeto * item.cantidad;
+        return `
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:8px 10px; font-family:monospace; font-size:11px; color:#4a5568;">${item.ID}</td>
+            <td style="padding:8px 10px; font-weight:600; color:#1a202c;">${item.Nombre}</td>
+            <td style="padding:8px 10px; text-align:center; font-weight:bold;">${item.cantidad}</td>
+            <td style="padding:8px 10px; text-align:right; color:#4a5568;">$${item.PrecioOriginal.toFixed(2)}</td>
+            <td style="padding:8px 10px; text-align:right; color:#059669; font-weight:bold;">
+              ${item.TieneDescuento ? `-${Math.round(item.DescuentoPct)}%` : '-'}
+            </td>
+            <td style="padding:8px 10px; text-align:right; font-weight:bold; color:#0b0f19;">$${totalFila.toFixed(2)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function descargarFacturaPDF() {
+      if (!ultimaCompraInfo) return;
+
+      const btn = document.getElementById("btnDescargarPdf");
+      const textoOriginal = btn.innerHTML;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> GENERANDO PDF...`;
+      btn.disabled = true;
+
+      const element = document.getElementById("factura-pdf-template");
+      // Hacer visible temporalmente para renderizado por html2pdf
+      element.style.display = "block";
+
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `Factura_${ultimaCompraInfo.idCompra}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf().set(opt).from(element).save().then(() => {
+        element.style.display = "none";
+        btn.innerHTML = textoOriginal;
+        btn.disabled = false;
+        mostrarNotificacionToast("Factura PDF descargada exitosamente");
+      }).catch(err => {
+        console.error("Error al exportar PDF:", err);
+        element.style.display = "none";
+        btn.innerHTML = textoOriginal;
+        btn.disabled = false;
+        alert("Ocurrió un detalle al compilar el PDF. Por favor reintenta.");
+      });
+    }
+
+    // =====================================================
+    // 9. COMUNICACIÓN HTTP (POST & GET) A GOOGLE SHEETS
+    // =====================================================
+    async function enviarPostSheet(datos) {
+      const url = obtenerApiUrlEfectiva();
+      console.log("Despachando acción hacia Google Sheets:", datos.action, datos);
+
+      if (!url || url === "SU_URL_AQUI") {
+        console.info("Simulación local activa (const API_URL = 'SU_URL_AQUI'). Datos persistidos en sesión.");
+        return { status: "success", simulated: true };
+      }
+
+      try {
+        // Enviar POST con payload JSON o text/plain para máxima compatibilidad con CORS en Apps Script
+        const respuesta = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify(datos)
+        });
+
+        if (respuesta.ok) {
+          try {
+            return await respuesta.json();
+          } catch(e) {
+            return { status: "success" };
+          }
+        }
+      } catch (err) {
+        console.warn("Fallo o política CORS al enviar POST a Google Sheets:", err);
+      }
+      return { status: "fallback" };
+    }
+
+    // =====================================================
+    // 10. MODAL DE CONFIGURACIÓN & STATUS API
+    // =====================================================
+    function abrirModalConfigAPI() {
+      document.getElementById("modalConfigAPI").classList.remove("hidden");
+    }
+
+    function cerrarModalConfigAPI() {
+      document.getElementById("modalConfigAPI").classList.add("hidden");
+    }
+
+    function guardarUrlPersonalizada() {
+      const input = document.getElementById("customApiUrlInput");
+      const nuevaUrl = input.value.trim();
+      if (nuevaUrl) {
+        localStorage.setItem("CYBER_CUSTOM_API_URL", nuevaUrl);
+        mostrarNotificacionToast("URL de Google Sheets actualizada");
+      } else {
+        localStorage.removeItem("CYBER_CUSTOM_API_URL");
+        mostrarNotificacionToast("Restablecido a URL por defecto");
+      }
+      cerrarModalConfigAPI();
+      actualizarIndicadorAPI();
+      cargarProductosDesdeAPI(true);
+    }
+
+    function actualizarIndicadorAPI() {
+      const dot = document.getElementById("apiStatusDot");
+      const text = document.getElementById("apiStatusText");
+      const url = obtenerApiUrlEfectiva();
+
+      if (url && url !== "SU_URL_AQUI") {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-ping";
+        text.innerText = "Sheets: Conectado";
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-cyan-400";
+        text.innerText = "Sheets: Simulación";
+      }
+    }
+
+    // =====================================================
+    // 11. NOTIFICACIONES TOAST CYBERPUNK
+    // =====================================================
+    function mostrarNotificacionToast(mensaje) {
+      const toast = document.createElement("div");
+      toast.className = "fixed bottom-5 right-5 z-50 glass-panel border border-neonCyan text-white px-4 py-3 rounded-xl shadow-glowCyanSm text-xs font-rajdhani flex items-center space-x-2 transition-all transform translate-y-4 opacity-0";
+      toast.innerHTML = `
+        <i class="fa-solid fa-circle-check text-neonCyan text-sm"></i>
+        <span class="font-bold tracking-wide">${mensaje}</span>
+      `;
+      document.body.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove("translate-y-4", "opacity-0");
+        toast.classList.add("translate-y-0", "opacity-100");
+      });
+
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-2");
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
